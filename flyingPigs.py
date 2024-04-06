@@ -11,7 +11,7 @@ HEIGHT = 800
 FPS = 60
 GRAVITY = 0.25
 FLAP_STRENGTH = -6  # Increased flap strength
-PIPE_GAP = 300  # Increased gap between pipes
+PIPE_GAP_HEIGHT = 300  # Height of the gap between pipes
 PIPE_SPEED = 3
 SCORE_INCREMENT = 25  # Score increment for passing through a pipe
 GAME_DURATION = 30  # Game duration in seconds
@@ -24,7 +24,7 @@ GREEN = (34, 139, 34)
 
 # Create the screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Flappy Pig")
+pygame.display.set_caption("Flying Pig")
 
 # Load images
 pig_img = pygame.image.load("pig.png").convert_alpha()
@@ -72,15 +72,13 @@ class Pipe(pygame.sprite.Sprite):
         super().__init__()
         self.image = pipe_img
         self.rect = self.image.get_rect()
-        pig_height = pig.rect.height  # Get the height of the pig
-        gap_height = 3 * pig_height  # Set the gap height (3 times the height of the pig)
-        upper_pipe_height = random.randint(50, HEIGHT - gap_height - 50)
-        lower_pipe_height = HEIGHT - upper_pipe_height - gap_height
-        self.upper_pipe_image = pygame.transform.scale(pipe_img, (self.rect.width, upper_pipe_height))
-        self.lower_pipe_image = pygame.transform.scale(pipe_img, (self.rect.width, lower_pipe_height))
+        self.gap_y = random.randint(50, HEIGHT - PIPE_GAP_HEIGHT - 50)  # Adjusted gap position
+        self.upper_pipe_height = self.gap_y
+        self.lower_pipe_height = HEIGHT - self.gap_y - PIPE_GAP_HEIGHT
+        self.upper_pipe_image = pygame.transform.scale(pipe_img, (self.rect.width, self.upper_pipe_height))
+        self.lower_pipe_image = pygame.transform.scale(pipe_img, (self.rect.width, self.lower_pipe_height))
         self.rect_upper = self.upper_pipe_image.get_rect(topleft=(x, 0))
-        self.rect_lower = self.lower_pipe_image.get_rect(topleft=(x, upper_pipe_height + gap_height))
-        self.passed = False
+        self.rect_lower = self.lower_pipe_image.get_rect(topleft=(x, self.gap_y + PIPE_GAP_HEIGHT))
 
 # Group for all sprites
 all_sprites = pygame.sprite.Group()
@@ -107,11 +105,11 @@ pygame.draw.rect(background, GREEN, (0, HEIGHT - 100, WIDTH, 100))  # Grass
 
 # Main game loop
 clock = pygame.time.Clock()
-game_start_time = 0
+game_start_time = pygame.time.get_ticks()  # Initialize game start time
 score = 0
 running = True
 
-while running:
+while running and (pygame.time.get_ticks() - game_start_time) < GAME_DURATION * 1000:
     clock.tick(FPS)
 
     for event in pygame.event.get():
@@ -141,7 +139,7 @@ while running:
 
     # Check for collisions
     hits = pygame.sprite.spritecollide(pig, pipes, False)
-    if hits:
+    if hits or pig.rect.bottom >= HEIGHT:
         running = False
 
     # Remove off-screen pipes
@@ -150,12 +148,10 @@ while running:
             pipe.kill()
 
     # Check for passing through pipes and update score
-    now = pygame.time.get_ticks()
-    if pig.clicked and now - game_start_time >= 1000 and (now - game_start_time) // 1000 <= GAME_DURATION:
-        for pipe in pipes:
-            if pipe.rect_upper.right < pig.rect.left and not pipe.passed:
-                pipe.passed = True
-                score += SCORE_INCREMENT
+    for pipe in pipes:
+        if pipe.rect_upper.right < pig.rect.left and not hasattr(pipe, "passed"):
+            score += SCORE_INCREMENT
+            pipe.passed = True
 
     # Draw background
     screen.blit(background, (0, 0))
@@ -173,21 +169,17 @@ while running:
     screen.blit(score_text, (WIDTH - score_text.get_width() - 10, 10))
 
     # Timer
-    time_remaining = max(0, GAME_DURATION - (now - game_start_time) // 1000)
+    time_remaining = max(0, GAME_DURATION - (pygame.time.get_ticks() - game_start_time) // 1000)
     timer_text = timer_font.render("Time: " + str(time_remaining) + "s", True, WHITE)
     screen.blit(timer_text, (WIDTH - timer_text.get_width() - 10, HEIGHT - timer_text.get_height() - 10))
 
     # Display instructions at the beginning
     if not pig.clicked:
-        display_text("Ready player one?", (WIDTH // 2, HEIGHT // 3), font)  # Adjusted position
+        display_text("Ready player one?", (WIDTH // 2, HEIGHT // 3), font)  # Adjusted
         display_text("Press any key to start", (WIDTH // 2, HEIGHT // 2), font)
         display_text("Press U to move up, D to move down", (WIDTH // 2, HEIGHT * 3 // 4), font)
 
     pygame.display.flip()
-
-    # Check if game time has ended
-    if now - game_start_time >= GAME_DURATION * 1000:
-        running = False
 
 # Display "GAME OVER!" text
 display_text("GAME OVER!", (WIDTH // 2, HEIGHT // 3), font)
